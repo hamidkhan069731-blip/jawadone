@@ -1,0 +1,10 @@
+import http from 'node:http';
+import app from '../worker/index.js';
+import {database} from './database.mjs';
+import {loadEnvFile} from 'node:process';
+import {existsSync} from 'node:fs';
+if(existsSync('.env'))loadEnvFile('.env');
+const db=database();const env={...process.env,DB:db};
+const server=http.createServer(async(req,res)=>{try{const chunks=[];for await(const c of req)chunks.push(c);const body=Buffer.concat(chunks);if(body.length>50000){res.writeHead(413,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Report is too large.'}));return;}const request=new Request('http://'+(req.headers.host||'localhost:8903')+req.url,{method:req.method,headers:req.headers,...(body.length?{body}: {})});const response=await app.fetch(request,env);res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));}catch(e){res.writeHead(500);res.end('Local server error: '+e.message)}});
+const port=Number(process.env.PORT)||8903;
+server.listen(port,'127.0.0.1',()=>console.log('Local: http://localhost:'+port));
